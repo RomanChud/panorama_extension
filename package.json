@@ -1,0 +1,59 @@
+{
+  "name": "pilot-panorama-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build-prod": "vue-cli-service build",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "@consta/charts": "^1.0.0",
+    "@consta/uikit": "^5.24.2",
+    "@pilotdev/pilot-web-2d": "^26.3.0",
+    "@pilotdev/pilot-web-3d": "^26.3.0",
+    "@pilotdev/pilot-web-sdk": "^26.1.0",
+    "chart.js": "^4.5.0",
+    "chartjs-plugin-annotation": "^3.1.0",
+    "chartjs-plugin-datalabels": "^2.2.0",
+    "jszip": "^3.7.1",
+    "pannellum": "^2.5.6",
+    "rxjs": "^7.8.2",
+    "vue": "^3.5.18",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@babel/preset-typescript": "^7.27.1",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "@vue/cli-plugin-typescript": "^5.0.8",
+    "@vue/cli-service": "^5.0.8",
+    "@vue/compiler-sfc": "^3.5.18",
+    "@vue/eslint-config-typescript": "^11.0.2",
+    "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^9.17.0",
+    "thread-loader": "^3.0.4",
+    "ts-loader": "^9.6.2",
+    "typescript": "^4.9.5",
+    "webpack": "^5.101.0"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "node": true
+    },
+    "extends": [
+      "plugin:vue/essential",
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "parser": "@babel/eslint-parser"
+    },
+    "rules": {}
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}

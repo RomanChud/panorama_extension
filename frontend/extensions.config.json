@@ -1,0 +1,19 @@
+{
+"manifestVersion": 1,
+"author": "Roman",
+"license": "MIT",
+"version": "25.7.0",
+"extension": {
+  "name": "panorama_extension",
+  "description": "Create panorama",
+  "entry": "panorama_extension.js",
+  "modules": [{
+        "ngModuleName": "PanoramaNavigation",
+        "exposedInterface": "IPageNavigation"
+      },
+      {
+        "ngModuleName": "PanoramaView",
+        "exposedInterface": "IOpenspaceView<PageContext>"
+      }]
+}
+}
