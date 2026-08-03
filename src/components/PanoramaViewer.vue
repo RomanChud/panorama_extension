@@ -1,5 +1,5 @@
 <template>
-  <div class="panorama-viewer">
+  <div v-if="imageUrl" class="panorama-viewer">
     <div class="panorama-header">
       <span class="title">{{ title }}</span>
       <button class="close-btn" @click="close">✕</button>
@@ -19,11 +19,22 @@ export default {
     title: {
       type: String,
       default: 'Панорама 360°'
+    },
+    pointId: {
+      type: String,
+      default: null
+    },
+    initialAzimuth: {
+      type: Number,
+      default: 0
     }
   },
   data() {
     return {
-      viewer: null
+      viewer: null,
+      updateTimer: null,
+      lastYaw: null,
+      currentAzimuth: this.initialAzimuth
     };
   },
   mounted() {
@@ -33,18 +44,31 @@ export default {
     this.destroyPanorama();
   },
   watch: {
-    imageUrl(newUrl) {
-      if (newUrl && this.viewer) {
-        this.viewer.loadScene({ panorama: newUrl });
-      } else if (newUrl) {
-        this.initPanorama();
-      }
+    imageUrl: {
+      handler(newUrl, oldUrl) {
+        if (newUrl && newUrl !== oldUrl) {
+          this.lastYaw = null;
+          this.currentAzimuth = this.initialAzimuth;
+          this.$nextTick(() => {
+            this.destroyPanorama();
+            this.initPanorama();
+          });
+        }
+      },
+      immediate: true
+    },
+    initialAzimuth: {
+      handler(val) {
+        this.currentAzimuth = val;
+        this.lastYaw = null;
+      },
+      immediate: true
     }
   },
   methods: {
     loadPannellum() {
       if (window.pannellum) {
-        this.initPanorama();
+        this.$nextTick(() => this.initPanorama());
         return;
       }
 
@@ -57,7 +81,7 @@ export default {
       script.src = 'https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js';
       script.onload = () => {
         console.log('Pannellum загружен');
-        this.initPanorama();
+        this.$nextTick(() => this.initPanorama());
       };
       script.onerror = () => {
         console.error('Ошибка загрузки Pannellum');
@@ -67,52 +91,102 @@ export default {
     },
 
     initPanorama() {
-      if (!this.$refs.panoramaContainer) {
-        console.warn('Контейнер не найден');
-        return;
-      }
+      this.$nextTick(() => {
+        if (!this.$refs.panoramaContainer) {
+          console.warn('Контейнер не найден');
+          return;
+        }
 
-      if (!window.pannellum) {
-        console.error('Pannellum не загружен');
-        return;
-      }
+        if (!window.pannellum) {
+          console.error('Pannellum не загружен');
+          return;
+        }
 
+        try {
+          const yawRad = (this.initialAzimuth || 0) * Math.PI / 180;
+          console.log('🎯 Устанавливаем yaw:', yawRad, 'радиан (', this.initialAzimuth, 'градусов)');
+          
+          this.viewer = window.pannellum.viewer(this.$refs.panoramaContainer, {
+            type: 'equirectangular',
+            panorama: this.imageUrl,
+            autoLoad: true,
+            autoRotate: 2,
+            compass: true,
+            showControls: true,
+            mouseZoom: true,
+            draggable: true,
+            title: this.title,
+            yaw: yawRad
+          });
+
+          this.viewer.on('error', (err) => {
+            console.error('Ошибка панорамы:', err);
+          });
+
+          setTimeout(() => {
+            if (this.viewer) {
+              this.lastYaw = this.viewer.getYaw();
+              this.sendAzimuth();
+            }
+          }, 100);
+
+          if (this.updateTimer) {
+            clearInterval(this.updateTimer);
+          }
+          this.updateTimer = setInterval(() => {
+            this.sendAzimuth();
+          }, 50);
+
+          console.log('✅ Панорама загружена с азимутом:', this.initialAzimuth);
+        } catch (error) {
+          console.error('❌ Ошибка инициализации:', error);
+        }
+      });
+    },
+
+    sendAzimuth() {
+      if (!this.viewer || this.lastYaw === null) return;
+      
       try {
-        this.viewer = window.pannellum.viewer(this.$refs.panoramaContainer, {
-          type: 'equirectangular',
-          panorama: this.imageUrl,
-          autoLoad: true,
-          autoRotate: 2,
-          compass: true,
-          showControls: true,
-          mouseZoom: true,
-          draggable: true,
-          title: this.title
-        });
-
-        this.viewer.on('error', (err) => {
-          console.error('Ошибка панорамы:', err);
-          alert('Не удалось загрузить панораму');
-        });
-
-        console.log('Панорама загружена');
-      } catch (error) {
-        console.error('Ошибка инициализации:', error);
+        const currentYaw = this.viewer.getYaw();
+        let delta = currentYaw - this.lastYaw;
+        let deltaDeg = ((delta + 180) % 360) - 180;
+        
+        let newAzimuth = this.initialAzimuth + deltaDeg;
+        newAzimuth = ((newAzimuth % 360) + 360) % 360;
+        
+        if (Math.abs(newAzimuth - this.currentAzimuth) > 0.1) {
+          this.currentAzimuth = newAzimuth;
+          this.$emit('azimuth-update', {
+            pointId: this.pointId,
+            azimuth: newAzimuth
+          });
+        }
+      } catch (e) {
+        console.error('Ошибка getYaw:', e);
       }
     },
 
     destroyPanorama() {
+      if (this.updateTimer) {
+        clearInterval(this.updateTimer);
+        this.updateTimer = null;
+      }
       if (this.viewer) {
         try {
+          const container = this.$refs.panoramaContainer;
+          if (container) {
+            container.innerHTML = '';
+          }
           this.viewer.destroy?.();
-        } catch (e) {
-          console.warn('Ошибка при уничтожении:', e);
-        }
+        } catch (e) {}
         this.viewer = null;
       }
+      this.lastYaw = null;
     },
 
     close() {
+      this.destroyPanorama();
       this.$emit('close');
     }
   }
@@ -120,14 +194,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-  font-family: 'GPN_DIN Condensed Bold';
-  src: url('@/assets/fonts/gpn_din-condensed-bold.ttf') format('truetype');
-  font-weight: bold;
-  font-style: normal;
-  font-display: swap;
-}
-
 .panorama-viewer {
   width: 100%;
   height: 100%;
