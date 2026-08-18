@@ -1,8 +1,19 @@
 <template>
-  <div v-if="imageUrl" class="panorama-viewer">
+  <div v-if="imageUrl" class="panorama-viewer" :class="{ 'mobile': isMobile }">
     <div class="panorama-header">
-      <span class="title">{{ title }}</span>
-      <button class="close-btn" @click="close">✕</button>
+      <span class="title" v-show="showTitle">{{ title }}</span>
+      <span class="title-placeholder" v-show="!showTitle">Панорама 360°</span>
+      <div class="header-actions">
+        <div v-if="pointInfo" class="point-info">
+          <span class="point-info-text">{{ pointInfo }}</span>
+        </div>
+        
+        <button class="title-btn" @click="toggleTitle" title="Показать/скрыть название">
+          <span v-if="showTitle">👁️</span>
+          <span v-else>👁️‍🗨️</span>
+        </button>
+        <button class="close-btn" @click="close">✕</button>
+      </div>
     </div>
     <div ref="panoramaContainer" class="panorama-container" />
   </div>
@@ -27,6 +38,15 @@ export default {
     initialAzimuth: {
       type: Number,
       default: 0
+    },
+    isMobile: {
+      type: Boolean,
+      default: false
+    },
+    // Информация о точке (высота, год, дата)
+    pointInfo: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -34,14 +54,9 @@ export default {
       viewer: null,
       updateTimer: null,
       lastYaw: null,
-      currentAzimuth: this.initialAzimuth
+      currentAzimuth: this.initialAzimuth,
+      showTitle: false
     };
-  },
-  mounted() {
-    this.loadPannellum();
-  },
-  beforeDestroy() {
-    this.destroyPanorama();
   },
   watch: {
     imageUrl: {
@@ -49,6 +64,7 @@ export default {
         if (newUrl && newUrl !== oldUrl) {
           this.lastYaw = null;
           this.currentAzimuth = this.initialAzimuth;
+          this.showTitle = false;
           this.$nextTick(() => {
             this.destroyPanorama();
             this.initPanorama();
@@ -65,7 +81,37 @@ export default {
       immediate: true
     }
   },
+  mounted() {
+    this.loadPannellum();
+    window.addEventListener('orientationchange', this.onOrientationChange);
+    window.addEventListener('resize', this.onResize);
+  },
+  beforeDestroy() {
+    this.destroyPanorama();
+    window.removeEventListener('orientationchange', this.onOrientationChange);
+    window.removeEventListener('resize', this.onResize);
+  },
   methods: {
+    toggleTitle() {
+      this.showTitle = !this.showTitle;
+    },
+    
+    onOrientationChange() {
+      this.$nextTick(() => {
+        if (this.viewer) {
+          this.viewer.resize();
+        }
+      });
+    },
+    
+    onResize() {
+      this.$nextTick(() => {
+        if (this.viewer) {
+          this.viewer.resize();
+        }
+      });
+    },
+    
     loadPannellum() {
       if (window.pannellum) {
         this.$nextTick(() => this.initPanorama());
@@ -90,59 +136,133 @@ export default {
       document.head.appendChild(script);
     },
 
-    initPanorama() {
-      this.$nextTick(() => {
-        if (!this.$refs.panoramaContainer) {
-          console.warn('Контейнер не найден');
-          return;
-        }
+    // initPanorama() {
+    //   this.$nextTick(() => {
+    //     if (!this.$refs.panoramaContainer) {
+    //       console.warn('Контейнер не найден');
+    //       return;
+    //     }
 
-        if (!window.pannellum) {
-          console.error('Pannellum не загружен');
-          return;
-        }
+    //     if (!window.pannellum) {
+    //       console.error('Pannellum не загружен');
+    //       return;
+    //     }
 
-        try {
-          const yawRad = (this.initialAzimuth || 0) * Math.PI / 180;
-          console.log('🎯 Устанавливаем yaw:', yawRad, 'радиан (', this.initialAzimuth, 'градусов)');
+    //     try {
+    //       const yawRad = (this.initialAzimuth || 0) * Math.PI / 180;
           
-          this.viewer = window.pannellum.viewer(this.$refs.panoramaContainer, {
-            type: 'equirectangular',
-            panorama: this.imageUrl,
-            autoLoad: true,
-            autoRotate: 2,
-            compass: true,
-            showControls: true,
-            mouseZoom: true,
-            draggable: true,
-            title: this.title,
-            yaw: yawRad
-          });
+    //       this.viewer = window.pannellum.viewer(this.$refs.panoramaContainer, {
+    //         type: 'equirectangular',
+    //         panorama: this.imageUrl,
+    //         autoLoad: true,
+    //         autoRotate: this.isMobile ? 0 : 2,
+    //         compass: true,
+    //         showControls: true,
+    //         mouseZoom: true,
+    //         draggable: true,
+    //         yaw: yawRad
+    //       });
 
-          this.viewer.on('error', (err) => {
-            console.error('Ошибка панорамы:', err);
-          });
+    //       this.viewer.on('error', (err) => {
+    //         console.error('Ошибка панорамы:', err);
+    //       });
 
-          setTimeout(() => {
-            if (this.viewer) {
-              this.lastYaw = this.viewer.getYaw();
-              this.sendAzimuth();
-            }
-          }, 100);
+    //       setTimeout(() => {
+    //         if (this.viewer) {
+    //           this.lastYaw = this.viewer.getYaw();
+    //           this.sendAzimuth();
+    //         }
+    //       }, 100);
 
-          if (this.updateTimer) {
-            clearInterval(this.updateTimer);
+    //       if (this.updateTimer) {
+    //         clearInterval(this.updateTimer);
+    //       }
+    //       this.updateTimer = setInterval(() => {
+    //         this.sendAzimuth();
+    //       }, 50);
+
+    //       console.log('✅ Панорама загружена с азимутом:', this.initialAzimuth);
+    //     } catch (error) {
+    //       console.error('❌ Ошибка инициализации:', error);
+    //     }
+    //   });
+    // },
+
+    // PanoramaViewer.vue — initPanorama
+
+initPanorama() {
+  this.$nextTick(() => {
+    if (!this.$refs.panoramaContainer) {
+      console.warn('Контейнер не найден');
+      return;
+    }
+
+    if (!window.pannellum) {
+      console.error('Pannellum не загружен');
+      return;
+    }
+
+    try {
+      const yawRad = (this.initialAzimuth || 0) * Math.PI / 180;
+      
+      const config = {
+        type: 'equirectangular',
+        panorama: this.imageUrl,
+        autoLoad: true,
+        autoRotate: this.isMobile ? 0 : 2,
+        compass: true,
+        showControls: true,
+        mouseZoom: true,
+        draggable: true,
+        yaw: yawRad
+      };
+      
+      if (this.isMobile) {
+        // На мобильных запускаем с задержкой
+        setTimeout(() => {
+          try {
+            this.viewer = window.pannellum.viewer(this.$refs.panoramaContainer, config);
+            this.setupViewerEvents();
+          } catch (e) {
+            console.error('Ошибка при инициализации на мобильном:', e);
+            // Пробуем еще раз
+            setTimeout(() => this.initPanorama(), 1000);
           }
-          this.updateTimer = setInterval(() => {
-            this.sendAzimuth();
-          }, 50);
+        }, 300);
+      } else {
+        this.viewer = window.pannellum.viewer(this.$refs.panoramaContainer, config);
+        this.setupViewerEvents();
+      }
+      
+    } catch (error) {
+      console.error('❌ Ошибка инициализации:', error);
+    }
+  });
+},
 
-          console.log('✅ Панорама загружена с азимутом:', this.initialAzimuth);
-        } catch (error) {
-          console.error('❌ Ошибка инициализации:', error);
-        }
-      });
-    },
+setupViewerEvents() {
+  if (!this.viewer) return;
+  
+  this.viewer.on('error', (err) => {
+    console.error('Ошибка панорамы:', err);
+  });
+
+  setTimeout(() => {
+    if (this.viewer) {
+      this.lastYaw = this.viewer.getYaw();
+      this.sendAzimuth();
+    }
+  }, 100);
+
+  if (this.updateTimer) {
+    clearInterval(this.updateTimer);
+  }
+  this.updateTimer = setInterval(() => {
+    this.sendAzimuth();
+  }, 50);
+
+  console.log('✅ Панорама загружена с азимутом:', this.initialAzimuth);
+},
 
     sendAzimuth() {
       if (!this.viewer || this.lastYaw === null) return;
@@ -189,6 +309,14 @@ export default {
       this.destroyPanorama();
       this.$emit('close');
     }
+    // close() {
+    //   this.destroyPanorama();
+    //   // Очищаем blob URL если он есть
+    //   if (this.imageUrl && this.imageUrl.startsWith('blob:')) {
+    //     URL.revokeObjectURL(this.imageUrl);
+    //   }
+    //   this.$emit('close');
+    // }
   }
 };
 </script>
@@ -217,30 +345,148 @@ export default {
 
 .panorama-header .title {
   color: #ffffff;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   font-family: 'GPN_DIN Condensed Bold', Arial, sans-serif;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title-placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 18px;
+  font-weight: 400;
+  font-family: 'GPN_DIN Condensed Bold', Arial, sans-serif;
+  flex: 1;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ===== ИНФО О ТОЧКЕ ===== */
+.point-info {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 2px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.point-info-text {
+  color: #ffffff;
+  font-size: 12px;
+  font-family: 'GPN_DIN Condensed Bold', Arial, sans-serif;
+  white-space: nowrap;
+}
+
+.title-btn {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  line-height: 1.5;
+  opacity: 0.5;
+}
+
+.title-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  opacity: 1;
 }
 
 .close-btn {
   background: none;
   border: none;
   color: #ffffff;
-  font-size: 24px;
+  font-size: 20px;
   cursor: pointer;
-  padding: 4px 12px;
-  border-radius: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
   transition: all 0.2s;
+  line-height: 1.5;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: scale(1.1);
+  background: rgba(255, 68, 68, 0.3);
 }
 
 .panorama-container {
   flex: 1;
   width: 100%;
   min-height: 0;
+}
+
+/* Мобильная версия */
+.panorama-viewer.mobile .panorama-header {
+  height: 25px;
+  min-height: 25px;
+  padding: 2px 12px;
+}
+
+.panorama-viewer.mobile .panorama-header .title {
+  font-size: 14px;
+}
+
+.panorama-viewer.mobile .title-placeholder {
+  font-size: 14px;
+}
+
+.panorama-viewer.mobile .close-btn {
+  font-size: 18px;
+  padding: 0 6px;
+}
+
+.panorama-viewer.mobile .title-btn {
+  font-size: 14px;
+  padding: 0 4px;
+}
+
+.panorama-viewer.mobile .point-info-text {
+  font-size: 10px;
+}
+
+.panorama-viewer.mobile .point-info {
+  padding: 1px 6px;
+}
+
+@media (max-width: 768px) and (orientation: landscape) {
+  .panorama-viewer.mobile .panorama-header {
+    height: 20px;
+    min-height: 20px;
+    padding: 1px 10px;
+  }
+  
+  .panorama-viewer.mobile .panorama-header .title {
+    font-size: 12px;
+  }
+  
+  .panorama-viewer.mobile .title-placeholder {
+    font-size: 12px;
+  }
+  
+  .panorama-viewer.mobile .close-btn {
+    font-size: 14px;
+    padding: 0 4px;
+  }
+  
+  .panorama-viewer.mobile .title-btn {
+    font-size: 12px;
+  }
+  
+  .panorama-viewer.mobile .point-info-text {
+    font-size: 9px;
+  }
+  
+  .panorama-viewer.mobile .point-info {
+    padding: 1px 4px;
+  }
 }
 </style>
